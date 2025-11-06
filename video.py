@@ -5,10 +5,6 @@ import cv2
 
 def read_vid():
     vid = cv2.VideoCapture(0)
-    frame_width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    out = cv2.VideoWriter('vid/output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 20.0, (frame_width, frame_height))
 
     first = None
 
@@ -40,14 +36,15 @@ def read_vid():
             (x, y, w, h) = cv2.boundingRect(contour)
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        out.write(frame)
-
-        cv2.imshow("Motion Detection", frame)
-
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+        ret2, buffer = cv2.imencode('.jpg', frame)
+        if not ret2:
+            continue
+
+        frame_bytes = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
     vid.release()
-    out.release()
-    cv2.destroyAllWindows()
-read_vid()
