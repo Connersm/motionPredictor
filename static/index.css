@@ -1,0 +1,130 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+body {
+  background-color: #35393C;
+  color: #e6e6e6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.page-layout {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 2rem 4rem;
+  gap: 2rem;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex: 1;
+  width: 100%;
+}
+
+.title-block {
+  background: #397367;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  padding: 1rem 1.5rem;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title-block h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+}
+
+.controls-container {
+  background: #5DA399;
+  color: #1c1e21;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  padding: 1rem 1.5rem;
+  width: 100%;
+}
+
+.controls-container form,
+.controls-container #buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+input[type="file"] {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+button {
+  background-color: #63CCCA;
+  color: #35393C;
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 1.4rem;
+  font-size: 1rem;
+  margin: 0.3rem 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+  background-color: #5DA399;
+  transform: scale(1.02);
+}
+
+button:active {
+  background-color: #42858C;
+  transform: scale(0.98);
+}
+
+.container {
+  flex: 2;
+  background: #63CCCA;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+img {
+  width: 100%;
+  border-radius: 10px;
+  background-color: #f8f8f8;
+  border: 1px solid #ccc;
+  object-fit: cover;
+}
+
+#status {
+  margin-top: 1rem;
+  color: #1c1e21;
+  font-size: 0.95rem;
+}
+
+footer {
+  text-align: center;
+  padding: 1rem 0;
+  color: #63CCCA;
+  font-size: 0.85rem;
+}
