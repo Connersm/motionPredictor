@@ -1,12 +1,16 @@
 import cv2
 import numpy as np
 from collections import deque
+import pandas as pd
+import time
+
+motion_log = []
 
 def initialize_capture():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        raise RuntimeError("❌ Could not open video source.")
-    return cap
+    vid = cv2.VideoCapture(0)
+    if not vid.isOpened():
+        raise RuntimeError("Could not open video source.")
+    return vid
 
 def preprocess_frame(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -59,6 +63,31 @@ def smooth_boxes(box_history, current_boxes, history_size=5):
     avg_box = (int(np.mean(xs)), int(np.mean(ys)), int(np.mean(ws)), int(np.mean(hs)))
     return [avg_box]
 
+def extract_object_data(boxes, prev_center, prev_time):
+    if not boxes:
+        return None, prev_center, prev_time
+    (x, y, w, h) = boxes[0]
+    cx, cy = x + w // 2, y + h // 2
+    area = w * h
+    now = time.time()
+    if prev_center is not None and prev_time is not None:
+        dt = now - prev_time
+        vx = (cx - prev_center[0]) / dt
+        vy = (cy - prev_center[1]) / dt
+    else:
+        vx = vy = 0
+    return (cx, cy, vx, vy, area), (cx, cy), now
+
+def update_motion_history(motion_log, data):
+    if data is not None:
+        motion_log.append(data)
+
+def save_motion_data(motion_log, filename="motion_data.csv"):
+    if not motion_log:
+        return
+    df = pd.DataFrame(motion_log, columns=["time", "x", "y", "vx", "vy", "area"])
+    df.to_csv(filename, index=False)
+
 def draw_boxes(frame, boxes):
     for (x, y, w, h) in boxes:
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
@@ -71,15 +100,19 @@ def encode_frame(frame):
     return (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
 
 def read_vid():
-    cap = initialize_capture()
+    vid = initialize_capture()
     back_sub = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=50, detectShadows=False)
     prev_gray = None
     frame_skip = 2
     frame_count = 0
     box_history = deque()
     history_size = 5
+    motion_log = []
+    prev_center = None
+    prev_time = None
+
     while True:
-        ret, frame = cap.read()
+        ret, frame = vid.read()
         if not ret or frame is None:
             break
         frame_count += 1
@@ -87,14 +120,24 @@ def read_vid():
             continue
         gray = preprocess_frame(frame)
         diff_mask, prev_gray = get_temporal_diff(gray, prev_gray)
+
         if diff_mask is None:
             continue
+
         fg_mask = get_background_mask(frame, back_sub)
         combined_mask = combine_and_clean_masks(diff_mask, fg_mask)
+
         boxes = merge_contours(combined_mask)
         smoothed_boxes = smooth_boxes(box_history, boxes, history_size)
+
+        data, prev_center, prev_time = extract_object_data(smoothed_boxes, prev_center, prev_time)
+
+        if data is not None:
+            timestamp = time.time()
+            update_motion_history(motion_log, (timestamp, data[0], data[1], data[2], data[3], data[4]))
+        
         draw_boxes(frame, smoothed_boxes)
         encoded = encode_frame(frame)
         if encoded:
             yield encoded
-    cap.release()
+    vid.release()
