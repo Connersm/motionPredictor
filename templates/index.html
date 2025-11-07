@@ -1,14 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Motion Predictor</title>
+  <link rel="stylesheet" href="/static/index.css" />
 </head>
 <body>
-    <h1>
-        Welcome to my motion predictor!
-    </h1>
-    <img src="/video" width="640" height="480">
+  <div class="page-layout">
+    <div class="sidebar">
+      <div class="title-block">
+        <h1>Motion Predictor</h1>
+      </div>
+
+      <div class="controls-container">
+        <form id="upload-form" enctype="multipart/form-data">
+          <input type="file" name="file" accept="video/*" />
+          <button type="submit">Upload Video</button>
+        </form>
+
+        <div id="buttons">
+          <button onclick="setSource('webcam')">Use Webcam</button>
+          <button onclick="setSource('uploaded')">Use Uploaded Video</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <img src="/video" width="640" height="480" alt="Video Stream" />
+      <p id="status">Current Source: Webcam</p>
+    </div>
+  </div>
+
+  <script src="/static/index.js"></script>
 </body>
 </html>

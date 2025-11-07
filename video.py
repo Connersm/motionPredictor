@@ -5,11 +5,26 @@ import pandas as pd
 import time
 
 motion_log = []
+video_source = 0
+vid = None
 
-def initialize_capture():
-    vid = cv2.VideoCapture(0)
+def set_video_source(source):
+    global vid, video_source
+    video_source = source
+
+    if vid is not None and vid.isOpened():
+        vid.release()
+
+    vid = cv2.VideoCapture(video_source)
     if not vid.isOpened():
-        raise RuntimeError("Could not open video source.")
+        print(f"[ERROR] Unable to open video source: {video_source}")
+    else:
+        print(f"[INFO] Switched to source: {video_source}")
+
+def get_video_capture():
+    global vid, video_source
+    if vid is None or not vid.isOpened():
+        vid = cv2.VideoCapture(video_source)
     return vid
 
 def preprocess_frame(frame):
@@ -100,7 +115,6 @@ def encode_frame(frame):
     return (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
 
 def read_vid():
-    vid = initialize_capture()
     back_sub = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=50, detectShadows=False)
     prev_gray = None
     frame_skip = 2
@@ -112,13 +126,31 @@ def read_vid():
     prev_time = None
 
     while True:
+        vid = get_video_capture()
         ret, frame = vid.read()
-        if not ret or frame is None:
-            break
+
+
+        if not ret:
+            if isinstance(video_source, str):
+                vid.release()
+                vid = cv2.VideoCapture(video_source)
+                continue
+            else:
+                time.sleep(0.05)
+                continue
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
         frame_count += 1
         if frame_count % frame_skip != 0:
             continue
-        gray = preprocess_frame(frame)
+        if prev_gray is not None and gray.shape != prev_gray.shape:
+            prev_gray = None
+
+            if prev_gray is None:
+                prev_gray = gray
+                continue
+            
         diff_mask, prev_gray = get_temporal_diff(gray, prev_gray)
 
         if diff_mask is None:
