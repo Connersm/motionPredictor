@@ -1,3 +1,20 @@
+"""
+main.py
+@author: Conner Santa Monica
+Project: Motion Predictor
+
+Description:
+Entry point for the FastAPI web application. 
+Handles routing for static assets, video upload endpoints, 
+and video source selection (webcam or uploaded file). 
+Integrates with video.py for frame processing and motion detection.
+
+Modules:
+- FastAPI (server & routing)
+- uvicorn (development server)
+- video.py (video stream logic)
+"""
+
 from fastapi import FastAPI, Request, UploadFile, Form
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -5,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from video import read_vid, motion_log, set_video_source
 import os
 import shutil
+
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")

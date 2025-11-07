@@ -1,3 +1,21 @@
+"""
+video.py
+@author: Conner Santa Monica
+Project: Motion Predictor
+
+Description:
+Contains video capture and processing logic.
+Supports both webcam and uploaded video sources for motion analysis.
+Includes helper functions for frame differencing, thresholding,
+object tracking, and visual overlay generation.
+
+Key Functions:
+- get_temporal_diff(): frame differencing
+- preprocess_frame(): grayscale & blur
+- draw_motion_box(): highlight detected motion
+- read_vid(): generator for streaming video to frontend
+"""
+
 import cv2
 import numpy as np
 from collections import deque
@@ -140,7 +158,7 @@ def read_vid():
                 continue
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
+
         frame_count += 1
         if frame_count % frame_skip != 0:
             continue

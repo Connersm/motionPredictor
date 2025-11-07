@@ -1,3 +1,20 @@
+/*
+File: index.css
+Project: Motion Predictor
+@author: Conner Santa Monica
+
+Description:
+Defines color scheme, layout, and UI styling 
+for the Motion Predictor web interface.
+
+Palette:
+- Hooker’s Green (#397367)
+- Robin Egg Blue (#63CCCA)
+- Keppel (#5DA399)
+- Dark Cyan (#42858C)
+- Onyx (#35393C)
+*/
+
 * {
   box-sizing: border-box;
   margin: 0;

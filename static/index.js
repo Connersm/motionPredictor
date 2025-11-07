@@ -1,3 +1,18 @@
+/*
+File: index.js
+Project: Motion Predictor
+@author: Conner Santa Monica
+
+Description:
+Handles frontend logic and interactions for the Motion Predictor UI.
+Includes event listeners for upload, webcam selection, 
+and real-time video source updates from the FastAPI backend.
+
+Endpoints:
+- /upload_video
+- /set_source
+*/
+
 async function setSource(source) {
   const formData = new FormData();
   formData.append("source", source);
