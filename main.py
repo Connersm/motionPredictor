@@ -15,13 +15,14 @@ Modules:
 - video.py (video stream logic)
 """
 
-from fastapi import FastAPI, Request, UploadFile, Form
+from fastapi import FastAPI, Request, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from video import read_vid, motion_log, set_video_source
 import os
 import shutil
+import asyncio
 
 
 app = FastAPI()
@@ -86,7 +87,25 @@ def latest_motion_data():
         return JSONResponse({"message": "No data yet"})
     return JSONResponse(motion_log[-1])
 
-@app.get("/motion/all")
-def all_motion_data():
-    return JSONResponse(motion_log)
+@app.websocket("/ws/motion")
+async def motion_stream(ws: WebSocket):
+    await ws.accept()
+    last_index = 0
+    try:
+        while True:
+            if last_index < len(motion_log):
+                last_index = len(motion_log)
+                cx, cy, vx, vy, area = motion_log[-1]
+                await ws.send_json({
+                    "cx": cx,
+                    "cy": cy,
+                    "vx": vx,
+                    "vy": vy,
+                    "area": area
+                })
+            await asyncio.sleep(0.1)
+    except WebSocketDisconnect:
+        print("[WS] Client disconnected")
+    except Exception as e:
+        print(f"[WS ERROR] {e}")
 

@@ -21,6 +21,7 @@ import numpy as np
 from collections import deque
 import pandas as pd
 import time
+from db import save_motion_event
 
 motion_log = []
 video_source = 0
@@ -115,11 +116,6 @@ def update_motion_history(motion_log, data):
     if data is not None:
         motion_log.append(data)
 
-def save_motion_data(motion_log, filename="motion_data.csv"):
-    if not motion_log:
-        return
-    df = pd.DataFrame(motion_log, columns=["time", "x", "y", "vx", "vy", "area"])
-    df.to_csv(filename, index=False)
 
 def draw_boxes(frame, boxes):
     for (x, y, w, h) in boxes:
@@ -182,12 +178,14 @@ def read_vid():
 
         data, prev_center, prev_time = extract_object_data(smoothed_boxes, prev_center, prev_time)
 
-        if data is not None:
-            timestamp = time.time()
-            update_motion_history(motion_log, (timestamp, data[0], data[1], data[2], data[3], data[4]))
+        if data:
+            motion_log.append(data)
+            cx, cy, vx, vy, area = data
+            source_label = "webcam" if video_source == 0 else "file"
+            save_motion_event(time.time(), cx, cy, vx, vy, area, source_label)
+            cv2.rectangle(frame, (int(cx - 25), int(cy - 25)), (int(cx + 25), int(cy + 25)), (255, 0, 0), 2)
         
         draw_boxes(frame, smoothed_boxes)
         encoded = encode_frame(frame)
         if encoded:
             yield encoded
-    vid.release()

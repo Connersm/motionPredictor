@@ -60,3 +60,22 @@ function updateStatus(text) {
   const status = document.getElementById("status");
   status.textContent = text;
 }
+
+function startMotionStream() {
+  const loc = window.location;
+  const wsProto = loc.protocol === "https:" ? "wss" : "ws";
+  const wsUrl = `${wsProto}://${loc.host}/ws/motion`;
+
+  const socket = new WebSocket(wsUrl);
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log("Motion update:", data);
+  };
+
+  socket.onclose = () => {
+    setTimeout(startMotionStream, 3000);
+  };
+}
+
+startMotionStream();
