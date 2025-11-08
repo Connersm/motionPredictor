@@ -19,13 +19,29 @@ Key Functions:
 import cv2
 import numpy as np
 from collections import deque
-import pandas as pd
 import time
 from db import save_motion_event
+from threading import Thread
+from queue import Queue
 
+event_queue = Queue()
 motion_log = []
 video_source = 0
 vid = None
+
+def db_writer():
+    while True:
+        event = event_queue.get()
+        if event is None:
+            break
+        try:
+            save_motion_event(event["timestamp"], event["cx"], event["cy"], event["vx"], event["vy"], event["area"], event["source"])
+        except Exception as e:
+            print(f"[DB ERROR] {e}")
+        event_queue.task_done()
+
+Thread(target=db_writer, daemon=True).start()
+
 
 def set_video_source(source):
     global vid, video_source
@@ -182,7 +198,15 @@ def read_vid():
             motion_log.append(data)
             cx, cy, vx, vy, area = data
             source_label = "webcam" if video_source == 0 else "file"
-            save_motion_event(time.time(), cx, cy, vx, vy, area, source_label)
+            event_queue.put({
+                "timestamp": time.time(),
+                "cx": cx,
+                "cy": cy,
+                "vx": vx,
+                "vy": vy,
+                "area": area,
+                "source": source_label,
+            })
             cv2.rectangle(frame, (int(cx - 25), int(cy - 25)), (int(cx + 25), int(cy + 25)), (255, 0, 0), 2)
         
         draw_boxes(frame, smoothed_boxes)
