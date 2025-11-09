@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-SQLAlchemy
-psycopg2-binary
-opencv-python
-numpy
-pandas
-jinja2
-python-multipart
