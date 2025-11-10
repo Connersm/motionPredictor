@@ -35,6 +35,11 @@ class MotionEvent(Base):
     area = Column(Float)
     source = Column(String(32))
 
+    cx_pred = Column(Float)
+    cy_pred = Column(Float)
+    vx_pred = Column(Float)
+    vy_pred = Column(Float)
+    area_pred = Column(Float)
 
 Base.metadata.create_all(bind=engine)
 
@@ -53,6 +58,7 @@ def save_motion_event(timestamp, cx, cy, vx, vy, area, source):
         )
         db.add(event)
         db.commit()
+        return event.id
     except Exception as e:
         db.rollback()
         print(f"[DB ERROR] {e}")

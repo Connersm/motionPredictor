@@ -4,7 +4,6 @@ from db import SessionLocal, MotionEvent
 import pandas as pd
 
 def load_all_motion_data():
-    """Loads all motion data from the database as a pandas DataFrame."""
     session = SessionLocal()
     try:
         query = session.query(MotionEvent).order_by(MotionEvent.timestamp)

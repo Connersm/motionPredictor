@@ -5,8 +5,7 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 import pandas as pd
 
-#from clean import get_prepared_data
-from dataloader import load_all_motion_data
+from learning.dataloader import load_all_motion_data
 
 
 def create_sequences(df: pd.DataFrame, input_steps=20, pred_steps=10):
