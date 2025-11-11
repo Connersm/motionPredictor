@@ -20,47 +20,77 @@ import cv2
 import numpy as np
 from collections import deque
 import time
-from db import save_motion_event
+from db import save_motion_event, SessionLocal, MotionEvent
 from threading import Thread
 from queue import Queue
 from predictPath import predict_future_path, save_predictions
 
-# Global queues and variables
 event_queue = Queue()
 pred_queue = Queue()
 preds = []
 motion_log = []
 video_source = 0
 vid = None
+predicted_path = []  # Track predicted path points
+last_event_id = None  # Track last event for predictions
 
 
 # ------------------ Database Writer Thread ------------------ #
 def db_writer():
+    global last_event_id
     while True:
         print(" ***** ** * ******* GOT HERE 4. ***** ** * ******* ")
         event = event_queue.get()
         if event is None:
             continue
         try:
-            pred_queue.put(
-                save_motion_event(
-                    event["timestamp"],
-                    event["cx"],
-                    event["cy"],
-                    event["vx"],
-                    event["vy"],
-                    event["area"],
-                    event["source"],
-                )
+            event_id = save_motion_event(
+                event["timestamp"],
+                event["cx"],
+                event["cy"],
+                event["vx"],
+                event["vy"],
+                event["area"],
+                event["source"],
             )
+            last_event_id = event_id
+            pred_queue.put(event_id)
         except Exception as e:
             print(f"[DB ERROR] {e}")
         event_queue.task_done()
 
 
+# ------------------ Prediction Worker Thread ------------------ #
+def prediction_worker():
+    global predicted_path
+    while True:
+        event_id = pred_queue.get()
+        if event_id is None:
+            continue
+        try:
+            preds = predict_future_path(
+                model_path="learning/path_model.pt",
+                input_steps=20,
+                pred_steps=10,
+                device="cpu"
+            )
+            if preds.size > 0:
+                save_predictions(event_id, preds)
+                
+                # Extract predicted centers (cx, cy) from predictions
+                # preds is shape (pred_steps, 5) with [cx, cy, vx, vy, area]
+                predicted_centers = [(int(pred[0]), int(pred[1])) for pred in preds]
+                predicted_path = predicted_centers
+                
+            else:
+                print(f"[PRED WARN] No predictions generated for event_id={event_id}")
+        except Exception as e:
+            print(f"[PRED ERROR] {e}")
+        pred_queue.task_done()
+
+
 # ------------------ Video Source Setup ------------------ #
 def set_video_source(source):
-    """Switches the active video source (webcam or file)."""
     global vid, video_source
     video_source = source
 
@@ -75,7 +105,6 @@ def set_video_source(source):
 
 
 def get_video_capture():
-    """Returns the current cv2.VideoCapture object, reopening if needed."""
     global vid, video_source
     if vid is None or not vid.isOpened():
         vid = cv2.VideoCapture(video_source)
@@ -186,20 +215,61 @@ def draw_boxes(frame, boxes):
         )
 
 
+def draw_predicted_path(frame, predicted_centers):
+    if not predicted_centers or len(predicted_centers) < 2:
+        return
+    
+    for i in range(len(predicted_centers) - 1):
+        start_point = predicted_centers[i]
+        end_point = predicted_centers[i + 1]
+        
+        cv2.line(frame, start_point, end_point, (0, 255, 255), 2)
+    
+    for i, center in enumerate(predicted_centers):
+        color = (0, 255 - (i * 25), 255) if i < 10 else (0, 0, 255)
+        cv2.circle(frame, center, 4, color, -1)
+        
+        if i % 2 == 0:
+            cv2.putText(
+                frame, 
+                f"P{i}", 
+                (center[0] + 5, center[1] - 5),
+                cv2.FONT_HERSHEY_SIMPLEX, 
+                0.4, 
+                color, 
+                1
+            )
+
+
 # ------------------ Encoding ------------------ #
 def encode_frame(frame):
-    ret, buffer = cv2.imencode(".jpg", frame)
-    if not ret:
+    try:
+        if frame is None or frame.size == 0:
+            return None
+        
+        if frame.shape[0] == 0 or frame.shape[1] == 0:
+            return None
+            
+        ret, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ret or buffer is None or len(buffer) == 0:
+            return None
+            
+        return (
+            b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+            + str(len(buffer.tobytes())).encode()
+            + b"\r\n\r\n"
+            + buffer.tobytes()
+            + b"\r\n"
+        )
+    except Exception as e:
+        print(f"[ENCODE ERROR] {e}")
         return None
-    return (
-        b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
-        + buffer.tobytes()
-        + b"\r\n"
-    )
 
 
 # ------------------ Video Reader Generator ------------------ #
 def read_vid():
+    global motion_log
+    
     back_sub = cv2.createBackgroundSubtractorMOG2(
         history=200, varThreshold=50, detectShadows=False
     )
@@ -208,79 +278,93 @@ def read_vid():
     frame_count = 0
     box_history = deque()
     history_size = 5
-    motion_log = []
     prev_center = None
     prev_time = None
 
     while True:
-        vid = get_video_capture()
-        ret, frame = vid.read()
+        try:
+            vid = get_video_capture()
+            ret, frame = vid.read()
 
-        if not ret:
-            if isinstance(video_source, str):
-                vid.release()
-                vid = cv2.VideoCapture(video_source)
+            if not ret:
+                if isinstance(video_source, str):
+                    vid.release()
+                    vid = cv2.VideoCapture(video_source)
+                    continue
+                else:
+                    time.sleep(0.05)
+                    continue
+
+            if frame is None or frame.size == 0:
                 continue
+
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            frame_count += 1
+
+            if frame_count % frame_skip != 0:
+                continue
+
+            if prev_gray is not None and gray.shape != prev_gray.shape:
+                prev_gray = None
+
+            if prev_gray is None:
+                prev_gray = gray
+                continue
+
+            diff_mask, prev_gray = get_temporal_diff(gray, prev_gray)
+            if diff_mask is None:
+                continue
+
+            fg_mask = get_background_mask(frame, back_sub)
+            combined_mask = combine_and_clean_masks(diff_mask, fg_mask)
+
+            boxes = merge_contours(combined_mask)
+            smoothed_boxes = smooth_boxes(box_history, boxes, history_size)
+
+            data, prev_center, prev_time = extract_object_data(
+                smoothed_boxes, prev_center, prev_time
+            )
+
+            if data:
+                motion_log.append(data)
+                cx, cy, vx, vy, area = data
+                source_label = "webcam" if video_source == 0 else "file"
+                event_queue.put(
+                    {
+                        "timestamp": time.time(),
+                        "cx": cx,
+                        "cy": cy,
+                        "vx": vx,
+                        "vy": vy,
+                        "area": area,
+                        "source": source_label,
+                    }
+                )
+                cv2.rectangle(
+                    frame,
+                    (int(cx - 25), int(cy - 25)),
+                    (int(cx + 25), int(cy + 25)),
+                    (255, 0, 0),
+                    2,
+                )
+
+            draw_boxes(frame, smoothed_boxes)
+            
+            draw_predicted_path(frame, predicted_path)
+
+            encoded = encode_frame(frame)
+            if encoded is not None and len(encoded) > 0:
+                yield encoded
             else:
-                time.sleep(0.05)
+                print("[WARN] Frame encoding failed, skipping frame")
                 continue
-
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame_count += 1
-
-        if frame_count % frame_skip != 0:
+                
+        except Exception as e:
+            print(f"[ERROR in read_vid] {e}")
             continue
 
-        if prev_gray is not None and gray.shape != prev_gray.shape:
-            prev_gray = None
-
-        if prev_gray is None:
-            prev_gray = gray
-            continue
-
-        diff_mask, prev_gray = get_temporal_diff(gray, prev_gray)
-        if diff_mask is None:
-            continue
-
-        fg_mask = get_background_mask(frame, back_sub)
-        combined_mask = combine_and_clean_masks(diff_mask, fg_mask)
-
-        boxes = merge_contours(combined_mask)
-        smoothed_boxes = smooth_boxes(box_history, boxes, history_size)
-
-        data, prev_center, prev_time = extract_object_data(
-            smoothed_boxes, prev_center, prev_time
-        )
-
-        if data:
-            motion_log.append(data)
-            cx, cy, vx, vy, area = data
-            source_label = "webcam" if video_source == 0 else "file"
-            event_queue.put(
-                {
-                    "timestamp": time.time(),
-                    "cx": cx,
-                    "cy": cy,
-                    "vx": vx,
-                    "vy": vy,
-                    "area": area,
-                    "source": source_label,
-                }
-            )
-            cv2.rectangle(
-                frame,
-                (int(cx - 25), int(cy - 25)),
-                (int(cx + 25), int(cy + 25)),
-                (255, 0, 0),
-                2,
-            )
-
-        draw_boxes(frame, smoothed_boxes)
-
-        encoded = encode_frame(frame)
-        if encoded:
-            yield encoded
 
 
 
 Thread(target=db_writer, daemon=True).start()
+Thread(target=prediction_worker, daemon=True).start()

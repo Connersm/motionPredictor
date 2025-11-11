@@ -76,9 +76,27 @@ async def upload_video(file: UploadFile):
 
 @app.get("/video")
 def video_feed():
+    """Stream video frames to client with proper error handling."""
+    def frame_generator():
+        try:
+            for frame_data in read_vid():
+                if frame_data is not None and len(frame_data) > 0:
+                    yield frame_data
+        except Exception as e:
+            print(f"[STREAM ERROR] {e}")
+            # Let the generator finish gracefully on error
+            return
+    
     return StreamingResponse(
-        read_vid(),
-        media_type="multipart/x-mixed-replace; boundary=frame"
+        frame_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked"
+        }
     )
 
 @app.get("/motion/latest")
